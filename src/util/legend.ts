@@ -1,4 +1,4 @@
-import { deepMix, map } from '@antv/util';
+import { deepMix, get, map } from '@antv/util';
 import View from '../chart/view';
 import { DIRECTION } from '../constant';
 import { Attribute, Scale, Tick } from '../dependents';
@@ -50,7 +50,8 @@ export function getLegendItems(
         isInPolar: geometry.coordinate.isPolar,
       });
       // the marker configure order should be ensure
-      marker = deepMix({}, themeMarker, marker, userMarker);
+      // @ts-ignore
+      marker = deepMix({}, get(themeMarker, 'style'), marker, get(userMarker, 'style'));
 
       return { id: value, name, value, marker };
     });

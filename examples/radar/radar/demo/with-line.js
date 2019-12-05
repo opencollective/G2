@@ -57,7 +57,11 @@ chart.axis('score', {
   },
 });
 chart.legend('user', {
-  marker: 'circle',
+  marker: {
+    style: {
+      symbol: 'circle',
+    },
+  },
   offsetY: -30,
 });
 chart
