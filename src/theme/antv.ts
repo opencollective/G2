@@ -677,4 +677,44 @@ export default {
       },
     },
   },
+  label: {
+    offset: 20,
+    style: {
+      fill: '#545454',
+      fontSize: 12,
+      textBaseline: 'middle',
+      fontFamily: FONT_FAMILY,
+    },
+    autoRotate: true,
+  },
+  treemapLabels: {
+    offset: 10,
+    style: {
+      fill: '#fff',
+      fontSize: 12,
+      textBaseline: 'top',
+      fontStyle: 'bold',
+      fontFamily: FONT_FAMILY,
+    },
+    autoRotate: true,
+  },
+  innerLabels: {
+    style: {
+      fill: '#fff',
+      fontSize: 12,
+      textBaseline: 'middle',
+      fontFamily: FONT_FAMILY,
+    },
+    autoRotate: true,
+  },
+  thetaLabels: {
+    labelHeight: 14,
+    offset: 30,
+    labelLine: {
+      style: {
+        lineWidth: 1,
+      },
+    },
+    autoRotate: true,
+  },
 };

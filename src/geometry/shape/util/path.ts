@@ -230,11 +230,13 @@ export function getSplinePath(points: Point[], isInCircle?: boolean, constaint?:
   return splinePath;
 }
 
+// TODO: 移动外部的 util 中
 /** 获取点到圆心的距离 */
 export function getPointRadius(coord, point: Point): number {
   return getDistanceToCenter(coord, point);
 }
 
+// TODO: 移动外部的 util 中
 /** 获取点到圆心的夹角 */
 export function getPointAngle(coord, point: Point): number {
   const center = coord.getCenter();

@@ -1,3 +1,5 @@
+import { Adjust, getAdjust as getAdjustClass } from '@antv/adjust';
+import { Attribute, getAttribute as getAttributeClass } from '@antv/attr';
 import {
   clone,
   each,
@@ -16,14 +18,6 @@ import {
   map,
   set,
 } from '@antv/util';
-import { createScaleByField, syncScale } from '../util/scale';
-import Element from './element';
-import { getShapeFactory } from './shape/base';
-import { isModelChange } from './util/is-model-change';
-import { parseFields } from './util/parse-fields';
-
-import { Adjust, getAdjust as getAdjustClass } from '@antv/adjust';
-import { Attribute, getAttribute as getAttributeClass } from '@antv/attr';
 import { FIELD_ORIGIN, GROUP_ATTRS } from '../constant';
 import { Coordinate, IGroup, Scale } from '../dependents';
 import {
@@ -39,10 +33,15 @@ import {
   ShapeMarkerCfg,
   ShapePoint,
 } from '../interface';
+import { createScaleByField, syncScale } from '../util/scale';
+import Element from './element';
 import {
   AdjustOption,
   AttributeOption,
   ColorAttrCallback,
+  GeometryLabelCfg,
+  LabelCallback,
+  LabelOption,
   ShapeAttrCallback,
   SizeAttrCallback,
   StyleCallback,
@@ -50,6 +49,10 @@ import {
   TooltipCallback,
   TooltipOption,
 } from './interface';
+import GeometryLabelsController from './label/controller';
+import { getShapeFactory } from './shape/base';
+import { isModelChange } from './util/is-model-change';
+import { parseFields } from './util/parse-fields';
 
 interface AttributeInstanceCfg {
   fields?: string[];
@@ -131,16 +134,21 @@ export default class Geometry {
    */
   public dataArray: MappingDatum[][];
 
+  /** 存储所有 elements 的图形容器 */
+  public elementsContainer: IGroup;
+  /** 存储所有 Geometry label 的图形容器 */
+  public labelsContainer: IGroup;
+
   /** Store tooltip configuration */
   public tooltipOption: TooltipOption | boolean;
+  /** label 配置项 */
+  public labelOption: LabelOption | false;
   /** 图形属性映射配置 */
   protected attributeOption: Record<string, AttributeOption> = {};
   /** adjust 配置项 */
   protected adjustOption: AdjustOption[];
   /** style 配置项 */
   protected styleOption: StyleOption;
-  /** label 配置项 */
-  protected labelOption;
   /** animate 配置项 */
   protected animateOption: AnimateOption | boolean = true;
   protected shapeFactory: ShapeFactory;
@@ -148,16 +156,13 @@ export default class Geometry {
   protected lastElementsMap: Record<string, Element> = {};
   /** 是否生成多个点来绘制图形 */
   protected generatePoints: boolean = false;
-  /** 存储所有 elements 的图形容器 */
-  protected elementsContainer: IGroup;
-  /** 存储所有 Geometry label 的图形容器 */
-  protected labelsContainer: IGroup;
   // 虚拟 Group
   protected offscreenGroup: IGroup;
   protected beforeMappingData: Data[] = null;
 
   private adjusts: Record<string, Adjust> = {};
   private lastAttributeOption;
+  private labelController: GeometryLabelsController;
 
   /**
    * Creates an instance of geometry.
@@ -181,6 +186,11 @@ export default class Geometry {
     });
     this.labelsContainer = container.addGroup({
       name: 'label',
+    });
+
+    this.labelController = new GeometryLabelsController({
+      geometry: this,
+      container: this.labelsContainer,
     });
   }
 
@@ -606,9 +616,47 @@ export default class Geometry {
   }
 
   /**
-   * TODO: label() 如何实现
+   * configure gemoetry label
+   *
+   * @example
+   * ```ts
+   * // data: [ {x: 1, y: 2, z: 'a'}, {x: 2, y: 2, z: 'b'} ]
+   * label({
+   *   fields: [ 'z' ]
+   * });
+   *
+   * label(false); // do not show label
+   * ```
+   *
+   * @param field
+   * @returns label
    */
-  public label() {
+  public label(field: LabelOption | false | string): Geometry;
+  public label(field: string, secondParam: GeometryLabelCfg | LabelCallback): Geometry;
+  public label(field: string, secondParam: LabelCallback, thirdParam: GeometryLabelCfg): Geometry;
+  public label(
+    field: string | LabelOption | false,
+    secondParam?: GeometryLabelCfg | LabelCallback,
+    thirdParam?: GeometryLabelCfg
+  ): Geometry {
+    if (isString(field)) {
+      const labelOption: LabelOption = {};
+      const fields = parseFields(field);
+      labelOption.fields = fields;
+      if (isFunction(secondParam)) {
+        labelOption.callback = secondParam;
+      } else if (isPlainObject(secondParam)) {
+        labelOption.cfg = secondParam;
+      }
+
+      if (thirdParam) {
+        labelOption.cfg = thirdParam;
+      }
+      this.labelOption = labelOption;
+    } else {
+      this.labelOption = field;
+    }
+
     return this;
   }
 
@@ -671,11 +719,12 @@ export default class Geometry {
     }
 
     // 添加 label
-    // if (this.get('labelOptions')) {
-    //   const labelController = this.get('labelController');
-    //   const labels = labelController.addLabels(union(...mappingArray), shapeContainer.get('children'));
-    //   this.set('labels', labels);
-    // }
+    if (this.labelOption) {
+      const labelController = this.labelController;
+      // const labels = labelController.addLabels(union(...mappingArray), shapeContainer.get('children'));
+      // this.set('labels', labels);
+      labelController.render(flatten(mappingArray));
+    }
 
     this.afterMapping(mappingArray);
 
@@ -849,6 +898,20 @@ export default class Geometry {
     return this.elements.filter((element) => {
       return condition(element);
     });
+  }
+
+  // 创建 scale 实例
+  public createScale(field: string) {
+    const scales = this.scales;
+    let scale = scales[field];
+    if (!scale) {
+      const data = this.data;
+      const scaleDefs = this.scaleDefs;
+      scale = createScaleByField(field, data, scaleDefs[field]);
+      scales[field] = scale;
+    }
+
+    return scale;
   }
 
   protected getShapeFactory() {
@@ -1051,20 +1114,6 @@ export default class Geometry {
 
       set(this.attributeOption, attrName, attrCfg);
     }
-  }
-
-  // 创建 scale 实例
-  private createScale(field: string) {
-    const scales = this.scales;
-    let scale = scales[field];
-    if (!scale) {
-      const data = this.data;
-      const scaleDefs = this.scaleDefs;
-      scale = createScaleByField(field, data, scaleDefs[field]);
-      scales[field] = scale;
-    }
-
-    return scale;
   }
 
   private initAttributes() {
